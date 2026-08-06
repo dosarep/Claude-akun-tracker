@@ -43,7 +43,7 @@ npm run dev
 2. Di [netlify.com](https://netlify.com) → **Add new site > Import an existing project**.
 3. Build command: `npm run build`, Publish directory: `dist`.
 4. Site settings > Environment variables → tambahkan `VITE_API_URL` dengan value yang sama.
-5. Deploy.
+5. Deploy. 
 
 ## Catatan
 
