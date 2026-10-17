@@ -50,3 +50,8 @@ npm run dev
 - Link website ini **publik** — siapa pun yang punya link bisa melihat & mengubah status akun (mark used, ganti topic, rename). Tidak ada login. Kalau butuh dibatasi hanya untuk kamu/tim, kabari saja, bisa ditambah proteksi password sederhana.
 - Data tetap tersimpan di Google Sheet yang sama seperti sebelumnya — jadi Sheet dan Website selalu menunjukkan data yang identik.
 - Kalau Sheet-nya kamu buka manual dan edit kolom secara langsung, website otomatis ikut ter-update dalam ≤15 detik (polling otomatis).
+
+## Update tampilan (tabel landscape)
+
+File yang berubah dari versi sebelumnya: `index.html`, `src/App.jsx`, `src/main.jsx`, dan file baru `src/styles.css`.
+Tailwind CDN sudah tidak dipakai. Environment variable `VITE_API_URL` di Vercel tidak perlu diubah.
