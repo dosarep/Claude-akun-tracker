@@ -1,5 +1,17 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Zap, RotateCcw, RefreshCw, WifiOff, Search, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+import {
+  Zap,
+  RotateCcw,
+  RefreshCw,
+  WifiOff,
+  Search,
+  ArrowUp,
+  ArrowDown,
+  Check,
+  Clock,
+  History,
+  Activity,
+} from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL; // URL Web App Apps Script, di-set lewat env var
 const POLL_MS = 15000; // ambil data terbaru dari server tiap 15 detik
@@ -38,16 +50,46 @@ function formatAgo(ts, now) {
   return `${Math.floor(h / 24)} hari lalu`;
 }
 
-function SortHead({ label, k, sort, onSort, className }) {
-  const active = sort.key === k;
-  const Icon = !active ? ChevronsUpDown : sort.dir === "asc" ? ChevronUp : ChevronDown;
+const SORT_OPTIONS = [
+  ["order", "Urutan sheet"],
+  ["remaining", "Sisa cooldown"],
+  ["lastUsedAt", "Terakhir dipakai"],
+  ["usedToday", "Pemakaian hari ini"],
+  ["name", "Nama akun"],
+];
+
+const RING_R = 46;
+const RING_C = 2 * Math.PI * RING_R;
+
+function Ring({ tone, progress, isReady, remaining }) {
   return (
-    <th className={className} aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
-      <button type="button" onClick={() => onSort(k)}>
-        {label}
-        <Icon size={13} style={{ opacity: active ? 1 : 0.5 }} />
-      </button>
-    </th>
+    <div className={`ring ${tone}`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)} aria-label="Progres cooldown">
+      <svg viewBox="0 0 108 108" width="108" height="108" aria-hidden="true">
+        <circle className="ring-track" cx="54" cy="54" r={RING_R} />
+        <circle
+          className="ring-fill"
+          cx="54"
+          cy="54"
+          r={RING_R}
+          strokeDasharray={RING_C}
+          strokeDashoffset={RING_C * (1 - progress)}
+          transform="rotate(-90 54 54)"
+        />
+      </svg>
+      <div className="ring-center">
+        {isReady ? (
+          <>
+            <Check size={22} strokeWidth={2.5} />
+            <span className="ring-sub">Siap</span>
+          </>
+        ) : (
+          <>
+            <span className="ring-time">{formatDuration(remaining)}</span>
+            <span className="ring-sub">tersisa</span>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -63,7 +105,7 @@ export default function App() {
   const [lastSynced, setLastSynced] = useState(null);
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState({ key: null, dir: "asc" });
+  const [sort, setSort] = useState({ key: "order", dir: "asc" });
   const [showAllLog, setShowAllLog] = useState(false);
   const tickRef = useRef(null);
   const pollRef = useRef(null);
@@ -167,23 +209,12 @@ export default function App() {
     recommendation = cooldownAccounts[0];
   }
 
-  const onSort = (key) => {
-    setSort((s) => {
-      if (s.key !== key) return { key, dir: "asc" };
-      if (s.dir === "asc") return { key, dir: "desc" };
-      return { key: null, dir: "asc" };
-    });
-  };
-
   const sortValue = (a, key) => {
     switch (key) {
       case "name": return a.name.toLowerCase();
-      case "status": return a.isReady ? 0 : 1;
       case "remaining": return a.isReady ? -1 : a.remaining;
-      case "resetAt": return a.resetAt || 0;
       case "lastUsedAt": return a.lastUsedAt || 0;
       case "usedToday": return a.usedToday;
-      case "topic": return (a.topic || "").toLowerCase();
       default: return a.order;
     }
   };
@@ -195,14 +226,12 @@ export default function App() {
     if (q && !`${a.name} ${a.topic || ""}`.toLowerCase().includes(q)) return false;
     return true;
   });
-  if (sort.key) {
-    rows = [...rows].sort((x, y) => {
-      const vx = sortValue(x, sort.key);
-      const vy = sortValue(y, sort.key);
-      const c = vx < vy ? -1 : vx > vy ? 1 : x.order - y.order;
-      return sort.dir === "asc" ? c : -c;
-    });
-  }
+  rows = [...rows].sort((x, y) => {
+    const vx = sortValue(x, sort.key);
+    const vy = sortValue(y, sort.key);
+    const c = vx < vy ? -1 : vx > vy ? 1 : x.order - y.order;
+    return sort.dir === "asc" ? c : -c;
+  });
 
   // --- Layar setup kalau VITE_API_URL belum di-set ---
   if (error === "config") {
@@ -220,6 +249,7 @@ export default function App() {
   }
 
   const logRows = showAllLog ? log : log.slice(0, LOG_PREVIEW);
+  const SortDirIcon = sort.dir === "asc" ? ArrowUp : ArrowDown;
 
   return (
     <div className="page">
@@ -243,8 +273,10 @@ export default function App() {
       </header>
 
       {recommendation && (
-        <div className="next">
-          <Zap size={16} />
+        <div className={`next ${recommendation.isReady ? "" : "wait"}`}>
+          <span className="next-icon">
+            <Zap size={16} />
+          </span>
           <div className="grow">
             {recommendation.isReady ? (
               <>
@@ -276,138 +308,147 @@ export default function App() {
             </button>
           ))}
         </div>
-        <label className="search">
-          <Search size={14} />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari akun atau topic"
-            aria-label="Cari akun atau topic"
-          />
-        </label>
-      </div>
 
-      <div className="panel">
-        <div className="scroll">
-          <table>
-            <thead>
-              <tr>
-                <SortHead label="Akun" k="name" sort={sort} onSort={onSort} className="col-name" />
-                <SortHead label="Status" k="status" sort={sort} onSort={onSort} />
-                <SortHead label="Sisa cooldown" k="remaining" sort={sort} onSort={onSort} />
-                <SortHead label="Reset pada" k="resetAt" sort={sort} onSort={onSort} />
-                <SortHead label="Terakhir dipakai" k="lastUsedAt" sort={sort} onSort={onSort} />
-                <SortHead label="Hari ini" k="usedToday" sort={sort} onSort={onSort} className="right" />
-                <SortHead label="Topic penggunaan" k="topic" sort={sort} onSort={onSort} />
-                <th className="right">
-                  <div className="th">Aksi</div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {!loaded ? (
-                <tr>
-                  <td colSpan={8} className="empty">Memuat data akun...</td>
-                </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="empty">
-                    {accounts.length === 0 ? "Belum ada akun di Google Sheet." : "Tidak ada akun yang cocok dengan filter."}
-                  </td>
-                </tr>
-              ) : (
-                rows.map((a) => {
-                  const isPick = a.id === recommendation?.id;
-                  const tone = a.isReady ? "ready" : "cool";
-                  return (
-                    <tr key={a.id} className={isPick ? (a.isReady ? "pick" : "pick wait") : ""}>
-                      <td className="col-name">
-                        {editingId === a.id ? (
-                          <input
-                            autoFocus
-                            defaultValue={a.name}
-                            aria-label={`Ganti nama ${a.name}`}
-                            onBlur={(e) => {
-                              const val = e.target.value.trim();
-                              if (val && val !== a.name) renameAccount(a.id, val);
-                              setEditingId(null);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") e.target.blur();
-                              if (e.key === "Escape") setEditingId(null);
-                            }}
-                            className="name-input"
-                          />
-                        ) : (
-                          <>
-                            <button type="button" className="name-btn" onClick={() => setEditingId(a.id)} title="Klik untuk ganti nama">
-                              {a.name}
-                            </button>
-                            {isPick && <span className={`tag-next ${a.isReady ? "" : "wait"}`}>Berikutnya</span>}
-                          </>
-                        )}
-                      </td>
-                      <td>
-                        <span className={`pill ${tone}`}>
-                          <i />
-                          {a.isReady ? "Siap" : "Cooldown"}
-                        </span>
-                      </td>
-                      <td className="remain">
-                        {a.isReady ? (
-                          <div className="t ready">Siap dipakai</div>
-                        ) : (
-                          <div className="t cool">{formatDuration(a.remaining)}</div>
-                        )}
-                        <div className={`bar ${tone}`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(a.progress * 100)} aria-label="Progres cooldown">
-                          <span style={{ width: `${a.progress * 100}%` }} />
-                        </div>
-                      </td>
-                      <td className="when">{a.isReady ? <span className="muted">-</span> : formatClock(a.resetAt)}</td>
-                      <td className="when">
-                        {formatClock(a.lastUsedAt)}
-                        <small>{formatAgo(a.lastUsedAt, now)}</small>
-                      </td>
-                      <td className="num">{a.usedToday}x</td>
-                      <td>
-                        <input
-                          key={`${a.id}-${a.topic || ""}`}
-                          defaultValue={a.topic}
-                          aria-label={`Topic penggunaan ${a.name}`}
-                          onBlur={(e) => {
-                            if (e.target.value !== (a.topic || "")) updateTopic(a.id, e.target.value);
-                          }}
-                          onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
-                          placeholder="mis. Riset kompetitor, VBA Sneakerzone"
-                          className="topic"
-                        />
-                      </td>
-                      <td>
-                        <div className="act">
-                          <button type="button" className="btn" onClick={() => markUsed(a.id)}>
-                            <Zap size={13} /> Pakai sekarang
-                          </button>
-                          <button
-                            type="button"
-                            className="btn ghost"
-                            onClick={() => resetManual(a.id)}
-                            disabled={a.isReady}
-                            aria-label={`Tandai ${a.name} siap manual`}
-                            title="Tandai siap manual (kalau ternyata belum limit)"
-                          >
-                            <RotateCcw size={13} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+        <div className="tools-right">
+          <div className="sortbox">
+            <label>
+              <span className="sr">Urutkan</span>
+              <select value={sort.key} onChange={(e) => setSort((s) => ({ ...s, key: e.target.value }))} aria-label="Urutkan akun">
+                {SORT_OPTIONS.map(([k, label]) => (
+                  <option key={k} value={k}>
+                    Urutkan: {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="dir"
+              onClick={() => setSort((s) => ({ ...s, dir: s.dir === "asc" ? "desc" : "asc" }))}
+              aria-label={sort.dir === "asc" ? "Urutan naik" : "Urutan turun"}
+              title={sort.dir === "asc" ? "Naik" : "Turun"}
+            >
+              <SortDirIcon size={14} />
+            </button>
+          </div>
+          <label className="search">
+            <Search size={14} />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Cari akun atau topic"
+              aria-label="Cari akun atau topic"
+            />
+          </label>
         </div>
       </div>
+
+      {!loaded ? (
+        <div className="empty-box">Memuat data akun...</div>
+      ) : rows.length === 0 ? (
+        <div className="empty-box">
+          {accounts.length === 0 ? "Belum ada akun di Google Sheet." : "Tidak ada akun yang cocok dengan filter."}
+        </div>
+      ) : (
+        <div className="grid">
+          {rows.map((a) => {
+            const isPick = a.id === recommendation?.id;
+            const tone = a.isReady ? "ready" : "cool";
+            const initial = (a.name || "?").trim().charAt(0).toUpperCase();
+            return (
+              <article key={a.id} className={`card ${tone} ${isPick ? "pick" : ""}`}>
+                <div className="card-top">
+                  <span className={`avatar ${tone}`} aria-hidden="true">{initial}</span>
+                  <div className="who">
+                    {editingId === a.id ? (
+                      <input
+                        autoFocus
+                        defaultValue={a.name}
+                        aria-label={`Ganti nama ${a.name}`}
+                        onBlur={(e) => {
+                          const val = e.target.value.trim();
+                          if (val && val !== a.name) renameAccount(a.id, val);
+                          setEditingId(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") e.target.blur();
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                        className="name-input"
+                      />
+                    ) : (
+                      <button type="button" className="name-btn" onClick={() => setEditingId(a.id)} title="Klik untuk ganti nama">
+                        {a.name}
+                      </button>
+                    )}
+                    {isPick && <span className={`tag-next ${a.isReady ? "" : "wait"}`}>Berikutnya</span>}
+                  </div>
+                  <span className={`pill ${tone}`}>
+                    <i />
+                    {a.isReady ? "Siap" : "Cooldown"}
+                  </span>
+                </div>
+
+                <div className="card-mid">
+                  <Ring tone={tone} progress={a.progress} isReady={a.isReady} remaining={a.remaining} />
+                  <dl className="meta">
+                    <div>
+                      <dt>
+                        <Clock size={13} /> Reset pada
+                      </dt>
+                      <dd>{a.isReady ? <span className="muted">Sudah reset</span> : formatClock(a.resetAt)}</dd>
+                    </div>
+                    <div>
+                      <dt>
+                        <History size={13} /> Terakhir dipakai
+                      </dt>
+                      <dd>
+                        {formatClock(a.lastUsedAt)}
+                        <small>{formatAgo(a.lastUsedAt, now)}</small>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>
+                        <Activity size={13} /> Hari ini
+                      </dt>
+                      <dd>{a.usedToday}x dipakai</dd>
+                    </div>
+                  </dl>
+                </div>
+
+                <input
+                  key={`${a.id}-${a.topic || ""}`}
+                  defaultValue={a.topic}
+                  aria-label={`Topic penggunaan ${a.name}`}
+                  onBlur={(e) => {
+                    if (e.target.value !== (a.topic || "")) updateTopic(a.id, e.target.value);
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
+                  placeholder="Topic, mis. Riset kompetitor"
+                  className="topic"
+                />
+
+                <div className="act">
+                  <button type="button" className="btn" onClick={() => markUsed(a.id)}>
+                    <Zap size={14} /> Pakai sekarang
+                  </button>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    onClick={() => resetManual(a.id)}
+                    disabled={a.isReady}
+                    aria-label={`Tandai ${a.name} siap manual`}
+                    title="Tandai siap manual (kalau ternyata belum limit)"
+                  >
+                    <RotateCcw size={14} />
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
 
       <div className="section-head">
         <h2>Log penggunaan</h2>
@@ -416,7 +457,7 @@ export default function App() {
           {log.length > LOG_PREVIEW && (
             <>
               {" "}
-              <button type="button" className="name-btn" style={{ fontWeight: 500 }} onClick={() => setShowAllLog((v) => !v)}>
+              <button type="button" className="link-btn" onClick={() => setShowAllLog((v) => !v)}>
                 {showAllLog ? "Tampilkan 50 terbaru" : "Tampilkan semua"}
               </button>
             </>
@@ -428,9 +469,9 @@ export default function App() {
           <table>
             <thead>
               <tr>
-                <th><div className="th">Waktu</div></th>
-                <th><div className="th">Akun</div></th>
-                <th style={{ width: "50%" }}><div className="th">Topic</div></th>
+                <th>Waktu</th>
+                <th>Akun</th>
+                <th style={{ width: "50%" }}>Topic</th>
               </tr>
             </thead>
             <tbody>
@@ -442,7 +483,7 @@ export default function App() {
                 logRows.map((entry) => (
                   <tr key={entry.id}>
                     <td className="when">{formatClock(entry.ts)}</td>
-                    <td style={{ fontWeight: 600 }}>{entry.name}</td>
+                    <td className="log-name">{entry.name}</td>
                     <td>{entry.topic || <span className="muted">-</span>}</td>
                   </tr>
                 ))
@@ -452,7 +493,7 @@ export default function App() {
         </div>
       </div>
 
-      <p className="foot">Data tersinkron otomatis lewat Google Sheet. Klik nama akun untuk ganti label, klik judul kolom untuk mengurutkan.</p>
+      <p className="foot">Data tersinkron otomatis lewat Google Sheet. Klik nama akun untuk ganti label.</p>
     </div>
   );
 }
