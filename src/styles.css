@@ -14,6 +14,7 @@
 
   /* status */
   --ready: #2a9577;
+  --ready-strong: #1d8266;
   --ready-soft: #e2f4ee;
   --ready-line: #bfe5d8;
   --cool: #c27a1f;
@@ -175,7 +176,14 @@ button, input, select { font: inherit; color: inherit; }
   padding: 18px;
   box-shadow: var(--shadow);
 }
-.card.pick.ready { border-color: var(--ready-line); box-shadow: 0 0 0 3px var(--ready-soft), var(--shadow); }
+/* Border hijau tebal = baru reset (penanda akun yang terakhir dipakai) */
+.card.fresh {
+  border-color: var(--ready);
+  box-shadow: 0 0 0 1px var(--ready), 0 6px 20px rgba(42, 149, 119, 0.22);
+}
+/* Penanda "Berikutnya" pakai halo biru, supaya tidak bentrok dengan border hijau */
+.card.pick { border-color: #b7cbf0; box-shadow: 0 0 0 3px var(--primary-soft), var(--shadow); }
+.card.pick.fresh { border-color: var(--ready); box-shadow: 0 0 0 1px var(--ready), 0 0 0 5px var(--primary-soft), var(--shadow); }
 .card.pick.cool { border-color: var(--cool-line); box-shadow: 0 0 0 3px var(--cool-soft), var(--shadow); }
 
 .card-top { display: flex; align-items: center; gap: 12px; }
@@ -191,6 +199,7 @@ button, input, select { font: inherit; color: inherit; }
 }
 .avatar.ready { background: var(--ready-soft); color: var(--ready); }
 .avatar.cool { background: var(--cool-soft); color: var(--cool); }
+.avatar.fresh { background: var(--ready); color: #fff; }
 
 .who { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .name-btn {
@@ -217,7 +226,7 @@ button, input, select { font: inherit; color: inherit; }
   font-weight: 600;
   font-size: 15px;
 }
-.tag-next { font-size: 11.5px; font-weight: 500; color: var(--ready); }
+.tag-next { font-size: 11.5px; font-weight: 600; color: var(--primary); }
 .tag-next.wait { color: var(--cool); }
 
 .pill {
@@ -232,6 +241,7 @@ button, input, select { font: inherit; color: inherit; }
 }
 .pill.ready { color: var(--ready); background: var(--ready-soft); }
 .pill.cool { color: var(--cool); background: var(--cool-soft); }
+.pill.fresh { color: #fff; background: var(--ready); }
 .pill i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: block; }
 
 /* ---------- ring + meta ---------- */
@@ -246,7 +256,8 @@ button, input, select { font: inherit; color: inherit; }
   stroke-linecap: round;
   transition: stroke-dashoffset 0.9s linear;
 }
-.ring.ready .ring-fill { stroke: var(--ready); }
+.ring.ready .ring-fill { stroke: var(--ready-strong); stroke-width: 10; }
+.ring.ready .ring-track { stroke-width: 10; }
 .ring.cool .ring-fill { stroke: var(--cool); }
 .ring-center {
   position: absolute;
