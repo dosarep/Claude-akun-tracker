@@ -166,27 +166,55 @@ button, input, select { font: inherit; color: inherit; }
   gap: 16px;
 }
 
+@property --p {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 0deg;
+}
+
 .card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 16px;
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   border-radius: 14px;
   padding: 18px;
   box-shadow: var(--shadow);
+  transition: --p 1s linear;
 }
-/* Border hijau tebal = baru reset (penanda akun yang terakhir dipakai) */
+/* Frame: border digambar lewat ::before supaya bisa berupa progress mengelilingi kartu */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: var(--bw, 1px);
+  background: var(--frame, var(--line));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+/* Cooldown: border berupa progress, searah dan sinkron dengan ring (mulai dari atas, searah jarum jam) */
+.card.cool {
+  --bw: 3px;
+  --frame: conic-gradient(var(--cool) 0 var(--p), var(--cool-line) var(--p) 360deg);
+}
+/* Baru reset: border hijau penuh (penanda akun yang terakhir dipakai) */
 .card.fresh {
-  border-color: var(--ready);
-  box-shadow: 0 0 0 1px var(--ready), 0 6px 20px rgba(42, 149, 119, 0.22);
+  --bw: 3px;
+  --frame: var(--ready);
+  box-shadow: 0 6px 20px rgba(42, 149, 119, 0.2), var(--shadow);
 }
-/* Penanda "Berikutnya" pakai halo biru, supaya tidak bentrok dengan border hijau */
-.card.pick { border-color: #b7cbf0; box-shadow: 0 0 0 3px var(--primary-soft), var(--shadow); }
-.card.pick.fresh { border-color: var(--ready); box-shadow: 0 0 0 1px var(--ready), 0 0 0 5px var(--primary-soft), var(--shadow); }
-.card.pick.cool { border-color: var(--cool-line); box-shadow: 0 0 0 3px var(--cool-soft), var(--shadow); }
+/* Penanda "Berikutnya": halo biru di luar frame, tidak mengubah warna border */
+.card.pick { box-shadow: 0 0 0 4px var(--primary-soft), var(--shadow); }
+.card.pick.idle { --frame: #b7cbf0; }
+.card.pick.fresh { box-shadow: 0 0 0 4px var(--primary-soft), 0 6px 20px rgba(42, 149, 119, 0.2); }
+.card.pick.cool { box-shadow: 0 0 0 4px var(--cool-soft), var(--shadow); }
 
-.card-top { display: flex; align-items: center; gap: 12px; }
+.card-top { display: flex; align-items: center; gap: 12px; height: 44px; }
 .avatar {
   flex: none;
   display: grid;
@@ -245,7 +273,7 @@ button, input, select { font: inherit; color: inherit; }
 .pill i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: block; }
 
 /* ---------- ring + meta ---------- */
-.card-mid { display: flex; align-items: center; gap: 18px; }
+.card-mid { display: flex; align-items: center; gap: 18px; height: 152px; }
 
 .ring { position: relative; flex: none; width: 108px; height: 108px; }
 .ring svg { display: block; }
@@ -274,16 +302,19 @@ button, input, select { font: inherit; color: inherit; }
 .ring-sub { font-size: 11.5px; color: var(--dim); }
 .ring.ready .ring-sub { color: var(--ready); font-weight: 600; font-size: 13px; }
 
-.meta { margin: 0; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
-.meta dt { display: flex; align-items: center; gap: 5px; color: var(--dim); font-size: 12px; }
-.meta dd { margin: 1px 0 0; font-weight: 500; font-variant-numeric: tabular-nums; font-size: 13.5px; }
-.meta dd small { display: block; color: var(--dim); font-weight: 400; font-size: 12px; }
+.meta { margin: 0; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+/* dua baris pertama selalu menyediakan ruang untuk baris kecil, jadi posisi tiap baris sama di semua kartu */
+.meta > div:nth-child(-n + 2) { min-height: 51px; }
+.meta dt { display: flex; align-items: center; gap: 5px; color: var(--dim); font-size: 12px; line-height: 1.3; }
+.meta dd { margin: 1px 0 0; font-weight: 500; font-variant-numeric: tabular-nums; font-size: 13.5px; line-height: 1.35; }
+.meta dd small { display: block; color: var(--dim); font-weight: 400; font-size: 12px; line-height: 1.3; }
 .muted { color: var(--dim); font-weight: 400; }
 
 /* ---------- topic + actions ---------- */
 .topic {
   width: 100%;
-  padding: 9px 12px;
+  height: 40px;
+  padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--band);
@@ -374,5 +405,6 @@ tbody tr:hover td { background: #fafbfd; }
 
 @media (prefers-reduced-motion: reduce) {
   .spin { animation: none; }
+  .card { transition: none; }
   .ring-fill { transition: none; }
 }
