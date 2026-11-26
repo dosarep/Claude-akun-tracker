@@ -16,6 +16,10 @@ import {
 const API_URL = import.meta.env.VITE_API_URL; // URL Web App Apps Script, di-set lewat env var
 const POLL_MS = 15000; // ambil data terbaru dari server tiap 15 detik
 const LOG_PREVIEW = 50;
+// Akun yang sudah reset dalam rentang ini ditandai "Baru reset" (border hijau tebal).
+// Ubah angkanya kalau ingin jendela penandaan lebih pendek/panjang.
+const FRESH_HOURS = 5;
+const FRESH_MS = FRESH_HOURS * 60 * 60 * 1000;
 
 function formatDuration(ms) {
   if (ms <= 0) return "00:00:00";
@@ -196,10 +200,12 @@ export default function App() {
     const remaining = resetAt ? resetAt - now : 0;
     const isReady = !resetAt || remaining <= 0;
     const progress = resetAt ? Math.min(1, Math.max(0, (now - a.lastUsedAt) / cooldownMs)) : 1;
-    return { ...a, order: i, resetAt, remaining, isReady, progress, usedToday: usageTodayByName[a.name] || 0 };
+    const isFresh = isReady && !!resetAt && now - resetAt <= FRESH_MS;
+    return { ...a, order: i, resetAt, remaining, isReady, isFresh, progress, usedToday: usageTodayByName[a.name] || 0 };
   });
 
   const readyAccounts = withStatus.filter((a) => a.isReady);
+  const freshCount = readyAccounts.filter((a) => a.isFresh).length;
   const cooldownAccounts = withStatus.filter((a) => !a.isReady).sort((x, y) => x.remaining - y.remaining);
 
   let recommendation = null;
@@ -291,6 +297,7 @@ export default function App() {
           </div>
           <div className="count">
             {readyAccounts.length} dari {accounts.length} akun siap
+            {freshCount > 0 && ` · ${freshCount} baru reset`}
           </div>
         </div>
       )}
@@ -357,9 +364,12 @@ export default function App() {
             const tone = a.isReady ? "ready" : "cool";
             const initial = (a.name || "?").trim().charAt(0).toUpperCase();
             return (
-              <article key={a.id} className={`card ${tone} ${isPick ? "pick" : ""}`}>
+              <article
+                key={a.id}
+                className={`card ${tone} ${a.isFresh ? "fresh" : a.isReady ? "idle" : ""} ${isPick ? "pick" : ""}`}
+              >
                 <div className="card-top">
-                  <span className={`avatar ${tone}`} aria-hidden="true">{initial}</span>
+                  <span className={`avatar ${a.isFresh ? "fresh" : tone}`} aria-hidden="true">{initial}</span>
                   <div className="who">
                     {editingId === a.id ? (
                       <input
@@ -384,9 +394,9 @@ export default function App() {
                     )}
                     {isPick && <span className={`tag-next ${a.isReady ? "" : "wait"}`}>Berikutnya</span>}
                   </div>
-                  <span className={`pill ${tone}`}>
+                  <span className={`pill ${a.isFresh ? "fresh" : tone}`}>
                     <i />
-                    {a.isReady ? "Siap" : "Cooldown"}
+                    {a.isFresh ? "Baru reset" : a.isReady ? "Siap" : "Cooldown"}
                   </span>
                 </div>
 
@@ -397,7 +407,10 @@ export default function App() {
                       <dt>
                         <Clock size={13} /> Reset pada
                       </dt>
-                      <dd>{a.isReady ? <span className="muted">Sudah reset</span> : formatClock(a.resetAt)}</dd>
+                      <dd>
+                        {a.isReady ? <span className="muted">Sudah reset</span> : formatClock(a.resetAt)}
+                        {a.isReady && a.resetAt && <small>{formatAgo(a.resetAt, now)}</small>}
+                      </dd>
                     </div>
                     <div>
                       <dt>
