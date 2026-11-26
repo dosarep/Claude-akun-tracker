@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import {
   Zap,
   RotateCcw,
@@ -94,6 +94,103 @@ function Ring({ tone, progress, isReady, remaining }) {
         )}
       </div>
     </div>
+  );
+}
+
+// ---------- Border kartu animasi (SVG) ----------
+// Cooldown: busur oranye terisi searah jarum jam dari tengah sisi atas, sinkron dengan ring, ada "kepala" bercahaya.
+// Siap: border hijau penuh. Berikutnya: border biru penuh. Baru reset: ada kilau yang berkeliling.
+const FRAME_W = 4; // tebal border (px), samakan dengan stroke-width di .frame path (styles.css)
+const CARD_R = 14; // radius kartu (px), samakan dengan .card di styles.css
+
+function buildFramePath(w, h) {
+  const half = FRAME_W / 2;
+  const r = CARD_R - half;
+  const x0 = half;
+  const y0 = half;
+  const x1 = w - half;
+  const y1 = h - half;
+  const cx = w / 2;
+  return `M ${cx} ${y0} H ${x1 - r} A ${r} ${r} 0 0 1 ${x1} ${y0 + r} V ${y1 - r} A ${r} ${r} 0 0 1 ${x1 - r} ${y1} H ${x0 + r} A ${r} ${r} 0 0 1 ${x0} ${y1 - r} V ${y0 + r} A ${r} ${r} 0 0 1 ${x0 + r} ${y0} H ${cx} Z`;
+}
+
+function CardFrame({ variant, progress, sheen }) {
+  const svgRef = useRef(null);
+  const pathRef = useRef(null);
+  const headRef = useRef(null);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  const [intro, setIntro] = useState(0);
+
+  // ukur ukuran kartu supaya path pas mengikuti sudut membulat
+  useLayoutEffect(() => {
+    const el = svgRef.current;
+    if (!el) return undefined;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      setBox({ w: r.width, h: r.height });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // animasi masuk: border tergambar dari 0 ke posisi sebenarnya saat halaman dibuka
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setIntro(1);
+      return undefined;
+    }
+    let raf;
+    let t0;
+    const step = (t) => {
+      if (!t0) t0 = t;
+      const k = Math.min(1, (t - t0) / 1000);
+      setIntro(1 - Math.pow(1 - k, 3));
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const { w, h } = box;
+  const d = w > 0 && h > 0 ? buildFramePath(w, h) : "";
+  const shown = Math.min(1, Math.max(0, progress)) * intro;
+  const isCool = variant === "cool";
+
+  // posisi "kepala" busur cooldown
+  useLayoutEffect(() => {
+    const g = headRef.current;
+    const p = pathRef.current;
+    if (!g || !p) return;
+    const pt = p.getPointAtLength(p.getTotalLength() * shown);
+    g.setAttribute("transform", `translate(${pt.x} ${pt.y})`);
+    g.style.visibility = shown > 0.004 && shown < 0.999 ? "visible" : "hidden";
+  }, [d, shown, variant]);
+
+  return (
+    <svg ref={svgRef} className={`frame ${variant}`} aria-hidden="true">
+      {d && (
+        <>
+          <path className="frame-track" d={d} />
+          <path
+            ref={pathRef}
+            className="frame-arc"
+            d={d}
+            pathLength="100"
+            strokeDasharray={shown >= 0.999 ? undefined : `${shown * 100} 100`}
+            style={{ opacity: shown > 0.002 ? 1 : 0 }}
+          />
+          {sheen && intro >= 1 && <path className="frame-sheen" d={d} pathLength="100" />}
+          {isCool && (
+            <g ref={headRef}>
+              <circle className="frame-halo" r="8" />
+              <circle className="frame-dot" r="4.4" />
+            </g>
+          )}
+        </>
+      )}
+    </svg>
   );
 }
 
@@ -363,12 +460,13 @@ export default function App() {
             const isPick = a.id === recommendation?.id;
             const tone = a.isReady ? "ready" : "cool";
             const initial = (a.name || "?").trim().charAt(0).toUpperCase();
+            const frameVariant = !a.isReady ? "cool" : isPick ? "pick" : "ready";
             return (
               <article
                 key={a.id}
                 className={`card ${tone} ${a.isFresh ? "fresh" : a.isReady ? "idle" : ""} ${isPick ? "pick" : ""}`}
-                style={{ "--p": `${Math.round(a.progress * 360)}deg` }}
               >
+                <CardFrame variant={frameVariant} progress={a.isReady ? 1 : a.progress} sheen={a.isFresh} />
                 <div className="card-top">
                   <span className={`avatar ${a.isFresh ? "fresh" : tone}`} aria-hidden="true">{initial}</span>
                   <div className="who">
@@ -393,7 +491,11 @@ export default function App() {
                         {a.name}
                       </button>
                     )}
-                    {isPick && <span className={`tag-next ${a.isReady ? "" : "wait"}`}>Berikutnya</span>}
+                    {isPick && (
+                      <span className={`tag-next ${a.isReady ? "" : "wait"}`}>
+                        <Zap size={11} strokeWidth={2.5} /> Berikutnya
+                      </span>
+                    )}
                   </div>
                   <span className={`pill ${a.isFresh ? "fresh" : tone}`}>
                     <i />
