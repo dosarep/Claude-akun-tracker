@@ -367,6 +367,7 @@ export default function App() {
               <article
                 key={a.id}
                 className={`card ${tone} ${a.isFresh ? "fresh" : a.isReady ? "idle" : ""} ${isPick ? "pick" : ""}`}
+                style={{ "--p": `${Math.round(a.progress * 360)}deg` }}
               >
                 <div className="card-top">
                   <span className={`avatar ${a.isFresh ? "fresh" : tone}`} aria-hidden="true">{initial}</span>
